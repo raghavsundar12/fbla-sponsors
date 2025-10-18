@@ -19,10 +19,11 @@
     justify-content: center;
     overflow: hidden;
   }
-  canvas { 
-    display: block; 
+  canvas {
+    display: block;
     text-rendering: geometricPrecision;
     -webkit-font-smoothing: none;
+    background: #f3f3f3; /* fallback/background */
   }
 </style>
 </head>
@@ -31,18 +32,27 @@
 
 <script>
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+let DPR = window.devicePixelRatio || 1;
+const ctx = canvas.getContext('2d', { alpha: false }); // Option 2: disable transparency
 
 function resizeCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * dpr;
+  DPR = window.devicePixelRatio || 1;
+  canvas.width = Math.round(window.innerWidth * DPR);
+  canvas.height = Math.round(window.innerHeight * DPR);
   canvas.style.width = window.innerWidth + 'px';
   canvas.style.height = window.innerHeight + 'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Set transform so 1 unit in canvas drawing = 1 CSS pixel
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
+
+// --- Immediately paint background to avoid black flash ---
+ctx.save();
+ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+ctx.fillStyle = "#f3f3f3";
+ctx.fillRect(0, 0, canvas.width / DPR, canvas.height / DPR);
+ctx.restore();
 
 // --- Style constants ---
 const TEXT_COLOR = "#081f3f";
@@ -82,8 +92,13 @@ function generateShardShape(width, height) {
 }
 
 function createShards(centerX, centerY) {
+  // ensure we're using CSS-pixel coordinates for measurements
+  ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.font = FONT;
   const textWidth = ctx.measureText(initialText).width;
+  ctx.restore();
+
   const startX = centerX - textWidth / 2;
   const startY = centerY;
   shards = [];
@@ -122,12 +137,13 @@ function createShards(centerX, centerY) {
 
 function drawTextWithUnderline(txt, centerX, centerY) {
   ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); // ensure CSS-pixel coords
   ctx.font = FONT;
   ctx.fillStyle = TEXT_COLOR;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // round coordinates to avoid subpixel bolding
+  // round coordinates to avoid subpixel differences
   const px = Math.round(centerX);
   const py = Math.round(centerY);
   ctx.fillText(txt, px, py);
@@ -139,7 +155,9 @@ function drawTextWithUnderline(txt, centerX, centerY) {
 }
 
 function drawShard(s) {
+  // shards are positioned in CSS-pixel coordinates, so draw using DPR transform
   ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.translate(s.x + s.width / 2, s.y);
   ctx.rotate(s.rotation);
   ctx.beginPath();
@@ -151,7 +169,7 @@ function drawShard(s) {
   ctx.lineWidth = 1;
   ctx.strokeStyle = "rgba(0,0,0,0.15)";
   ctx.stroke();
-  <!--ctx.font = `${FONT_WEIGHT} ${Math.round(FONT_SIZE * 0.6)}px ${FONT_FAMILY}`;-->
+
   ctx.font = `500 ${Math.round(FONT_SIZE * 0.6)}px ${FONT_FAMILY}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -162,9 +180,18 @@ function drawShard(s) {
 
 function animate() {
   animationRunning = true;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Force full repaint in the SAME coordinate space (use DPR transform)
+  ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);                 // draw in CSS pixels
+  ctx.globalCompositeOperation = "copy";                  // replace pixels
+  ctx.fillStyle = "#f3f3f3";                              // match page bg
+  ctx.fillRect(0, 0, canvas.width / DPR, canvas.height / DPR);
+  ctx.restore();
+
   const center = getTopCenter();
   drawTextWithUnderline(secretText, center.x, center.y);
+
   const floor = window.innerHeight - 8;
   for (let s of shards) {
     s.vy += s.ay;
@@ -182,6 +209,8 @@ function animate() {
     if (s.x + s.width > window.innerWidth) { s.x = window.innerWidth - s.width; s.vx *= -0.65; }
     drawShard(s);
   }
+
+  // continue
   requestAnimationFrame(animate);
 }
 
@@ -197,7 +226,13 @@ canvas.addEventListener('click', () => {
 });
 
 (function initialDraw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // paint background cleanly in correct coordinate space
+  ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = "#f3f3f3";
+  ctx.fillRect(0, 0, canvas.width / DPR, canvas.height / DPR);
+  ctx.restore();
+
   const center = getTopCenter();
   drawTextWithUnderline(initialText, center.x, center.y);
 })();
