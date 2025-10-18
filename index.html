@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="noindex" />
+<title>FBLA Sponsors</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    font-family: 'Montserrat', sans-serif;
+    background: #f3f3f3;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+  }
+  canvas { 
+    display: block; 
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// --- Style constants ---
+const TEXT_COLOR = "#081f3f";
+const FONT_WEIGHT = 675;           // slightly thicker than default
+const FONT_FAMILY = "Montserrat, sans-serif";
+const FONT_SIZE = 36;              // matches Past Meetings title
+const FONT = `${FONT_WEIGHT} ${FONT_SIZE}px ${FONT_FAMILY}`;
+const UNDERLINE_WIDTH = 50;
+const UNDERLINE_HEIGHT = 4;
+const UNDERLINE_OFFSET = 8;
+
+const initialText = "FBLA Sponsors";
+const secretText = "Daddy Davin";
+
+let clickTimestamps = [];
+const maxClicks = 10;
+const quickTime = 2000;
+
+let shards = [];
+let animationRunning = false;
+const TOP_MARGIN = 100;
+
+function getTopCenter() {
+  return { x: Math.round(window.innerWidth / 2), y: TOP_MARGIN };
+}
+
+function generateShardShape(width, height) {
+  const points = [];
+  const numPoints = 3 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < numPoints; i++) {
+    points.push({
+      x: Math.random() * width - width / 2,
+      y: Math.random() * height - height / 2
+    });
+  }
+  return points;
+}
+
+function createShards(centerX, centerY) {
+  ctx.font = FONT;
+  const textWidth = ctx.measureText(initialText).width;
+  const startX = centerX - textWidth / 2;
+  const startY = centerY;
+  shards = [];
+
+  const numChunks = 20;
+  for (let i = 0; i < numChunks; i++) {
+    const shardWidth = textWidth / numChunks;
+    const x = startX + i * shardWidth + (Math.random() - 0.5) * 5;
+    const y = startY + (Math.random() - 0.5) * 4;
+    const chunkText = initialText.substr(
+      Math.floor(i * initialText.length / numChunks),
+      Math.ceil(initialText.length / numChunks)
+    );
+
+    const numFragments = 2 + Math.floor(Math.random() * 2);
+    for (let f = 0; f < numFragments; f++) {
+      const fragWidth = Math.max(10, shardWidth / numFragments);
+      const fragHeight = Math.max(10, FONT_SIZE * 0.75);
+      shards.push({
+        x: x + Math.random() * fragWidth,
+        y: y + Math.random() * 4,
+        vx: (Math.random() - 0.5) * 12,
+        vy: (Math.random() - 1.2) * 14,
+        ax: 0,
+        ay: 0.9,
+        rotation: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.3,
+        width: fragWidth,
+        height: fragHeight,
+        text: chunkText,
+        shape: generateShardShape(fragWidth, fragHeight)
+      });
+    }
+  }
+}
+
+function drawTextWithUnderline(txt, centerX, centerY) {
+  ctx.save();
+  ctx.font = FONT;
+  ctx.fillStyle = TEXT_COLOR;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // round coordinates to avoid subpixel bolding
+  const px = Math.round(centerX);
+  const py = Math.round(centerY);
+  ctx.fillText(txt, px, py);
+
+  const underlineX = px - UNDERLINE_WIDTH / 2;
+  const underlineY = py + (FONT_SIZE / 2) + UNDERLINE_OFFSET;
+  ctx.fillRect(underlineX, underlineY, UNDERLINE_WIDTH, UNDERLINE_HEIGHT);
+  ctx.restore();
+}
+
+function drawShard(s) {
+  ctx.save();
+  ctx.translate(s.x + s.width / 2, s.y);
+  ctx.rotate(s.rotation);
+  ctx.beginPath();
+  ctx.moveTo(s.shape[0].x, s.shape[0].y);
+  for (let i = 1; i < s.shape.length; i++) ctx.lineTo(s.shape[i].x, s.shape[i].y);
+  ctx.closePath();
+  ctx.fillStyle = TEXT_COLOR;
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0,0,0,0.15)";
+  ctx.stroke();
+  <!--ctx.font = `${FONT_WEIGHT} ${Math.round(FONT_SIZE * 0.6)}px ${FONT_FAMILY}`;-->
+  ctx.font = `500 ${Math.round(FONT_SIZE * 0.6)}px ${FONT_FAMILY}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#fff";
+  ctx.fillText(s.text, 0, 0);
+  ctx.restore();
+}
+
+function animate() {
+  animationRunning = true;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const center = getTopCenter();
+  drawTextWithUnderline(secretText, center.x, center.y);
+  const floor = window.innerHeight - 8;
+  for (let s of shards) {
+    s.vy += s.ay;
+    s.vx += s.ax;
+    s.rotation += s.vr;
+    s.x += s.vx;
+    s.y += s.vy;
+    if (s.y > floor) {
+      s.y = floor;
+      s.vy *= -0.45;
+      s.vx *= 0.82;
+      s.vr *= 0.88;
+    }
+    if (s.x < 0) { s.x = 0; s.vx *= -0.65; }
+    if (s.x + s.width > window.innerWidth) { s.x = window.innerWidth - s.width; s.vx *= -0.65; }
+    drawShard(s);
+  }
+  requestAnimationFrame(animate);
+}
+
+canvas.addEventListener('click', () => {
+  const now = Date.now();
+  clickTimestamps.push(now);
+  clickTimestamps = clickTimestamps.filter(t => now - t < quickTime);
+  if (clickTimestamps.length >= maxClicks && !animationRunning) {
+    const center = getTopCenter();
+    createShards(center.x, center.y);
+    animate();
+  }
+});
+
+(function initialDraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const center = getTopCenter();
+  drawTextWithUnderline(initialText, center.x, center.y);
+})();
+</script>
+</body>
+</html>
